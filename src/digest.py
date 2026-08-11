@@ -986,7 +986,11 @@ def send_discord_webhook(
                     "payload_json": json.dumps(
                         {
                             "username":
-                                "Valorant Session Digest"
+                                "Valorant Session Digest",
+                            "content": "@here",
+                            "allowed_mentions":{
+                                "parse": ["everyone"]
+                            }
                         }
                     )
                 },
