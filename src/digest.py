@@ -6,6 +6,10 @@ from typing import Any
 
 import requests
 
+# NEW:
+# card.py is in the same src/ directory as digest.py
+from card import generate_session_card
+
 
 # ============================================================
 # Configuration
@@ -23,10 +27,7 @@ VALORANT_PLATFORM = os.getenv("VALORANT_PLATFORM", "pc")
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-# HenrikDev v4 currently allows up to 10 matches per request.
 MATCH_LIMIT = 10
-
-# Keep only the latest 50 processed match IDs.
 STATE_LIMIT = 50
 
 REQUEST_TIMEOUT = 30
@@ -54,8 +55,8 @@ def validate_config():
 
     if missing:
         raise RuntimeError(
-            "Missing required environment variables: "
-            + ", ".join(missing)
+            f"Missing required environment variables: "
+            f"{', '.join(missing)}"
         )
 
 
@@ -65,7 +66,7 @@ def validate_config():
 
 def api_get(
     url: str,
-    params: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
 
     headers = {
@@ -148,7 +149,9 @@ def load_state() -> list[str]:
         ) from exc
 
 
-def save_state(processed_matches: list[str]):
+def save_state(
+    processed_matches: list[str]
+):
 
     # Remove duplicates while preserving order.
     unique_matches = list(
@@ -197,9 +200,8 @@ def fetch_matches() -> list[dict[str, Any]]:
 
     params = {
         # IMPORTANT:
-        # Only request Competitive matches.
+        # Request Competitive matches only.
         "mode": "competitive",
-
         "size": MATCH_LIMIT,
     }
 
@@ -246,12 +248,15 @@ def get_match_id(
     if not isinstance(metadata, dict):
         return None
 
-    # Current v4 structure.
-    match_id = metadata.get("match_id")
+    match_id = metadata.get(
+        "match_id"
+    )
 
-    # Defensive fallback for older structures.
+    # Defensive fallback.
     if not match_id:
-        match_id = metadata.get("matchid")
+        match_id = metadata.get(
+            "matchid"
+        )
 
     return (
         str(match_id)
@@ -272,14 +277,7 @@ def get_match_mode(
     if not isinstance(metadata, dict):
         return ""
 
-    # Current v4 structure:
-    #
-    # queue:
-    # {
-    #     "id": "competitive",
-    #     "name": "Competitive",
-    #     ...
-    # }
+    # Current v4 structure uses queue.
     queue = metadata.get(
         "queue",
         {}
@@ -287,26 +285,42 @@ def get_match_mode(
 
     if isinstance(queue, dict):
 
-        queue_id = queue.get("id")
+        queue_id = queue.get(
+            "id"
+        )
 
         if queue_id:
-            return str(queue_id).lower()
+            return str(
+                queue_id
+            ).lower()
 
-        queue_name = queue.get("name")
+        queue_name = queue.get(
+            "name"
+        )
 
         if queue_name:
-            return str(queue_name).lower()
+            return str(
+                queue_name
+            ).lower()
 
-    # Defensive fallback.
-    mode_id = metadata.get("mode_id")
+    # Defensive fallbacks.
+    mode_id = metadata.get(
+        "mode_id"
+    )
 
     if mode_id:
-        return str(mode_id).lower()
+        return str(
+            mode_id
+        ).lower()
 
-    mode = metadata.get("mode")
+    mode = metadata.get(
+        "mode"
+    )
 
     if mode:
-        return str(mode).lower()
+        return str(
+            mode
+        ).lower()
 
     return ""
 
@@ -315,7 +329,9 @@ def is_competitive_match(
     match: dict[str, Any]
 ) -> bool:
 
-    mode = get_match_mode(match)
+    mode = get_match_mode(
+        match
+    )
 
     return mode in {
         "competitive",
@@ -340,13 +356,10 @@ def get_map_name(
         {}
     )
 
-    # Current v4:
-    #
-    # "map": {
-    #     "id": "...",
-    #     "name": "Ascent"
-    # }
-    if isinstance(map_data, dict):
+    if isinstance(
+        map_data,
+        dict
+    ):
 
         return str(
             map_data.get(
@@ -355,15 +368,17 @@ def get_map_name(
             )
         )
 
-    # Older response format:
-    # "map": "Ascent"
-    if isinstance(map_data, str):
+    if isinstance(
+        map_data,
+        str
+    ):
+
         return map_data
 
     return "Unknown"
 
 
-def get_match_time(
+def get_match_timestamp(
     match: dict[str, Any]
 ) -> str:
 
@@ -372,7 +387,11 @@ def get_match_time(
         {}
     )
 
-    if not isinstance(metadata, dict):
+    if not isinstance(
+        metadata,
+        dict
+    ):
+
         return ""
 
     started_at = metadata.get(
@@ -380,15 +399,19 @@ def get_match_time(
     )
 
     if started_at:
-        return str(started_at)
+        return str(
+            started_at
+        )
 
-    # Older format fallback.
+    # Defensive fallback.
     started_at = metadata.get(
         "game_start_patched"
     )
 
     if started_at:
-        return str(started_at)
+        return str(
+            started_at
+        )
 
     return ""
 
@@ -402,7 +425,11 @@ def get_player(
         []
     )
 
-    if not isinstance(players, list):
+    if not isinstance(
+        players,
+        list
+    ):
+
         raise RuntimeError(
             "Unexpected players structure "
             "in match."
@@ -436,6 +463,7 @@ def get_player(
             name == target_name
             and tag == target_tag
         ):
+
             return player
 
     raise RuntimeError(
@@ -449,14 +477,20 @@ def get_player_stats(
     match: dict[str, Any]
 ) -> tuple[int, int]:
 
-    player = get_player(match)
+    player = get_player(
+        match
+    )
 
     stats = player.get(
         "stats",
         {}
     )
 
-    if not isinstance(stats, dict):
+    if not isinstance(
+        stats,
+        dict
+    ):
+
         raise RuntimeError(
             "Unexpected player stats structure."
         )
@@ -482,34 +516,37 @@ def get_player_agent(
     match: dict[str, Any]
 ) -> str:
 
-    player = get_player(match)
+    player = get_player(
+        match
+    )
 
     agent = player.get(
         "agent"
     )
 
-    # Current v4 structure:
-    #
-    # "agent": {
-    #     "id": "...",
-    #     "name": "Sova"
-    # }
-    if isinstance(agent, dict):
+    if isinstance(
+        agent,
+        dict
+    ):
 
         name = agent.get(
             "name"
         )
 
         if name:
-            return str(name)
+            return str(
+                name
+            )
 
-    # Defensive fallback for older structures.
+    # Defensive fallback.
     character = player.get(
         "character"
     )
 
     if character:
-        return str(character)
+        return str(
+            character
+        )
 
     return "Unknown"
 
@@ -522,19 +559,9 @@ def get_match_result(
     match: dict[str, Any]
 ) -> str:
 
-    """
-    Determine whether the configured player won/lost.
-
-    Current v4 match responses identify the player's
-    team through player["team_id"].
-
-    Some older responses use player["team"].
-
-    If the response does not expose a reliable team
-    result, return UNKNOWN rather than guessing.
-    """
-
-    player = get_player(match)
+    player = get_player(
+        match
+    )
 
     player_team = player.get(
         "team_id"
@@ -548,21 +575,23 @@ def get_match_result(
     if not player_team:
         return "UNKNOWN"
 
-    # --------------------------------------------------------
-    # Current v4 responses may contain team result information.
-    # --------------------------------------------------------
-
     teams = match.get(
         "teams"
     )
 
-    if isinstance(teams, dict):
+    if isinstance(
+        teams,
+        dict
+    ):
 
         team_data = teams.get(
             player_team
         )
 
-        if isinstance(team_data, dict):
+        if isinstance(
+            team_data,
+            dict
+        ):
 
             won = team_data.get(
                 "won"
@@ -574,11 +603,10 @@ def get_match_result(
             if won is False:
                 return "LOSS"
 
-    # --------------------------------------------------------
-    # Some responses expose red/blue team information.
-    # --------------------------------------------------------
-
-    if isinstance(teams, list):
+    if isinstance(
+        teams,
+        list
+    ):
 
         for team in teams:
 
@@ -586,6 +614,7 @@ def get_match_result(
                 team,
                 dict
             ):
+
                 continue
 
             team_id = (
@@ -625,14 +654,20 @@ def fetch_mmr_history() -> list[dict[str, Any]]:
         "[API] Fetching MMR history..."
     )
 
-    response = api_get(url)
+    response = api_get(
+        url
+    )
 
     history = response.get(
         "data",
         []
     )
 
-    if not isinstance(history, list):
+    if not isinstance(
+        history,
+        list
+    ):
+
         raise RuntimeError(
             "Unexpected MMR history response."
         )
@@ -682,7 +717,9 @@ def build_mmr_lookup(
 
             lookup[
                 str(match_id)
-            ] = int(rr_change)
+            ] = int(
+                rr_change
+            )
 
         except (
             TypeError,
@@ -725,15 +762,13 @@ def get_new_matches(
             continue
 
         # ----------------------------------------------------
-        # SECONDARY COMPETITIVE CHECK
+        # Secondary Competitive validation.
         #
-        # The API request already uses:
+        # API already requests:
+        # mode=competitive
         #
-        #     mode=competitive
-        #
-        # This check makes sure we don't accidentally
-        # process Deathmatch/TDM/etc. if an unexpected
-        # response ever appears.
+        # This prevents accidentally processing
+        # Deathmatch/TDM/etc.
         # ----------------------------------------------------
 
         if not is_competitive_match(
@@ -758,43 +793,6 @@ def get_new_matches(
 
 
 # ============================================================
-# Sort matches chronologically
-# ============================================================
-
-def get_match_timestamp(
-    match: dict[str, Any]
-) -> str:
-
-    metadata = match.get(
-        "metadata",
-        {}
-    )
-
-    if not isinstance(
-        metadata,
-        dict
-    ):
-        return ""
-
-    return str(
-        metadata.get(
-            "started_at",
-            ""
-        )
-    )
-
-
-def sort_matches_oldest_first(
-    matches: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-
-    return sorted(
-        matches,
-        key=get_match_timestamp
-    )
-
-
-# ============================================================
 # Aggregate session
 # ============================================================
 
@@ -809,12 +807,14 @@ def calculate_session(
 
     match_summaries = []
 
-    # Show games in chronological order:
+    # Oldest → newest.
+    # This makes the generated card read like:
     #
     # Game 1 → Game 2 → Game 3
     #
-    ordered_matches = sort_matches_oldest_first(
-        new_matches
+    ordered_matches = sorted(
+        new_matches,
+        key=get_match_timestamp
     )
 
     for match in ordered_matches:
@@ -827,15 +827,11 @@ def calculate_session(
             continue
 
         # ----------------------------------------------------
-        # RR must exist for every competitive match.
+        # RR must exist.
         #
-        # If it doesn't, abort without:
-        #
-        #   - Discord message
-        #   - state update
-        #
-        # This prevents losing a match because its RR
-        # wasn't available yet.
+        # If RR is unavailable, abort.
+        # Do NOT send an incomplete digest.
+        # Do NOT update state.
         # ----------------------------------------------------
 
         if match_id not in mmr_lookup:
@@ -911,18 +907,8 @@ def calculate_session(
 
 
 # ============================================================
-# Discord formatting
+# Console formatting
 # ============================================================
-
-def get_embed_color(
-    net_rr: int
-) -> int:
-
-    if net_rr < 0:
-        return 0xFF0000
-
-    return 0x00FF00
-
 
 def format_rr(
     rr: int
@@ -943,140 +929,77 @@ def format_match_line(
 
     if result == "WIN":
 
-        icon = "🟢"
         result_text = "WIN"
 
     elif result == "LOSS":
 
-        icon = "🔴"
         result_text = "LOSS"
 
     else:
 
-        icon = "⚪"
         result_text = "?"
 
-    kills = match["kills"]
-    deaths = match["deaths"]
     rr = format_rr(
         match["rr"]
     )
 
-    map_name = match["map"]
-    agent = match["agent"]
-
     return (
-        f"`#{index}` "
-        f"{icon} **{result_text}** "
-        f"| `{kills}/{deaths}` "
-        f"| **{rr} RR** "
-        f"| `{map_name}` "
-        f"| `{agent}`"
+        f"#{index} "
+        f"{result_text} | "
+        f"{match['kills']}/{match['deaths']} | "
+        f"{rr} RR | "
+        f"{match['map']} | "
+        f"{match['agent']}"
     )
-
-
-def build_match_details(
-    matches: list[dict[str, Any]]
-) -> str:
-
-    lines = []
-
-    for index, match in enumerate(
-        matches,
-        start=1
-    ):
-
-        lines.append(
-            format_match_line(
-                index,
-                match
-            )
-        )
-
-    return "\n".join(lines)
 
 
 # ============================================================
-# Discord Webhook
+# Discord PNG delivery
 # ============================================================
-
-def build_discord_payload(
-    session: dict[str, Any]
-) -> dict[str, Any]:
-
-    net_rr = session["net_rr"]
-
-    rr_text = format_rr(
-        net_rr
-    )
-
-    match_details = build_match_details(
-        session["matches"]
-    )
-
-    embed = {
-        "title": "🎮 Valorant Session Digest",
-
-        "description": (
-            f"**{session['matches_played']}** "
-            "competitive "
-            f"match"
-            f"{'es' if session['matches_played'] != 1 else ''} "
-            "played since the previous digest."
-        ),
-
-        "color": get_embed_color(
-            net_rr
-        ),
-
-        "fields": [
-            {
-                "name": "📊 Session Summary",
-                "value": (
-                    f"**Matches:** "
-                    f"{session['matches_played']}\n"
-                    f"**Net RR:** "
-                    f"{rr_text}\n"
-                    f"**Session K/D:** "
-                    f"{session['kd_ratio']:.2f}"
-                ),
-                "inline": False,
-            },
-
-            {
-                "name": "🎯 Match Details",
-                "value": match_details,
-                "inline": False,
-            },
-        ],
-
-        "footer": {
-            "text": (
-                f"{VALORANT_NAME}#{VALORANT_TAG} "
-                "• Valorant Session Digest"
-            )
-        },
-    }
-
-    return {
-        "username": "Valorant Session Digest",
-        "embeds": [embed],
-    }
-
 
 def send_discord_webhook(
-    payload: dict[str, Any]
+    card_path: Path
 ):
 
     print(
-        "[DISCORD] Sending session digest..."
+        "[DISCORD] Sending session card..."
     )
 
-    response = requests.post(
-        DISCORD_WEBHOOK_URL,
-        json=payload,
-        timeout=REQUEST_TIMEOUT,
-    )
+    try:
+
+        with card_path.open(
+            "rb"
+        ) as image_file:
+
+            response = requests.post(
+                DISCORD_WEBHOOK_URL,
+
+                files={
+                    "file": (
+                        "session_digest.png",
+                        image_file,
+                        "image/png"
+                    )
+                },
+
+                data={
+                    "payload_json": json.dumps(
+                        {
+                            "username":
+                                "Valorant Session Digest"
+                        }
+                    )
+                },
+
+                timeout=REQUEST_TIMEOUT
+            )
+
+    except OSError as exc:
+
+        raise RuntimeError(
+            f"Could not open generated "
+            f"session card: {exc}"
+        ) from exc
 
     if response.status_code not in (
         200,
@@ -1090,7 +1013,8 @@ def send_discord_webhook(
         )
 
     print(
-        "[DISCORD] Digest delivered successfully."
+        "[DISCORD] Session card "
+        "delivered successfully."
     )
 
 
@@ -1126,7 +1050,7 @@ def main():
     mmr_history = fetch_mmr_history()
 
     # --------------------------------------------------------
-    # 3. Identify new competitive matches
+    # 3. Identify new matches
     # --------------------------------------------------------
 
     new_matches = get_new_matches(
@@ -1172,7 +1096,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 6. Aggregate session
+    # 6. Calculate session
     # --------------------------------------------------------
 
     session = calculate_session(
@@ -1182,22 +1106,27 @@ def main():
 
     print()
     print("[SESSION]")
+
     print(
         f"Matches : "
         f"{session['matches_played']}"
     )
+
     print(
         f"Kills   : "
         f"{session['kills']}"
     )
+
     print(
         f"Deaths  : "
         f"{session['deaths']}"
     )
+
     print(
         f"K/D     : "
         f"{session['kd_ratio']:.2f}"
     )
+
     print(
         f"Net RR  : "
         f"{format_rr(session['net_rr'])}"
@@ -1221,21 +1150,30 @@ def main():
     print()
 
     # --------------------------------------------------------
-    # 7. Build + send Discord payload
+    # 7. Generate PNG
     # --------------------------------------------------------
 
-    payload = build_discord_payload(
-        session
+    card_path = generate_session_card(
+        session,
+        VALORANT_NAME,
+        VALORANT_TAG
     )
+
+    # --------------------------------------------------------
+    # 8. Send PNG to Discord
+    #
+    # IMPORTANT:
+    # state.json is NOT updated until Discord confirms
+    # successful delivery.
+    # --------------------------------------------------------
 
     send_discord_webhook(
-        payload
+        card_path
     )
 
     # --------------------------------------------------------
-    # 8. ONLY AFTER SUCCESSFUL DISCORD DELIVERY:
-    #
-    #    Update state.
+    # 9. Only AFTER successful Discord delivery:
+    #    update state.json
     # --------------------------------------------------------
 
     new_ids = [
