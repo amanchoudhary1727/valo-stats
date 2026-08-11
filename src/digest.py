@@ -987,9 +987,14 @@ def send_discord_webhook(
                         {
                             "username":
                                 "Valorant Session Digest",
-                            "content": "@here",
+                            "content": (
+                                "@here"
+                                "<@605648245942779904> 🎮"
+                                "Your Valorant digest is here!"
+                            ),
                             "allowed_mentions":{
-                                "parse": ["everyone"]
+                                "parse": ["everyone"],
+                                "users": ["605648245942779904"]
                             }
                         }
                     )
